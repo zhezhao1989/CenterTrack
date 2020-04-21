@@ -17,11 +17,14 @@ from pyquaternion import Quaternion
 import _init_paths
 from utils.ddd_utils import compute_box_3d, project_to_image, alpha2rot_y
 from utils.ddd_utils import draw_box_3d, unproject_2d_to_3d
+import os
 
-DATA_PATH = '../../data/nuscenes/'
+DATA_PATH = '/data/nuscene/'
 OUT_PATH = DATA_PATH + 'annotations/'
-SPLITS = {'val': 'v1.0-trainval', 'train': 'v1.0-trainval', 'test': 'v1.0-test'}
-DEBUG = False
+#SPLITS = {'val': 'v1.0-trainval', 'train': 'v1.0-trainval', 'test': 'v1.0-test'}
+SPLITS = {'val': 'v1.0-trainval', 'train': 'v1.0-trainval'}
+
+DEBUG = True
 CATS = ['car', 'truck', 'bus', 'trailer', 'construction_vehicle', 
                    'pedestrian', 'motorcycle', 'bicycle',
                    'traffic_cone', 'barrier']
@@ -32,9 +35,11 @@ SENSOR_ID = {'RADAR_FRONT': 7, 'RADAR_FRONT_LEFT': 9,
   'CAM_BACK_RIGHT': 3, 'CAM_BACK': 4, 'CAM_BACK_LEFT': 5,
   'CAM_FRONT_LEFT': 6}
 
-USED_SENSOR = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 
-  'CAM_BACK_RIGHT', 'CAM_BACK', 'CAM_BACK_LEFT',
-  'CAM_FRONT_LEFT']
+#USED_SENSOR = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 
+#  'CAM_BACK_RIGHT', 'CAM_BACK', 'CAM_BACK_LEFT',
+#  'CAM_FRONT_LEFT']
+USED_SENSOR = ['CAM_BACK_RIGHT', 'CAM_BACK_LEFT']
+
 CAT_IDS = {v: i + 1 for i, v in enumerate(CATS)}
 
 def _rot_y2alpha(rot_y, x, cx, fx):
@@ -68,6 +73,7 @@ def main():
     os.mkdir(OUT_PATH)
   for split in SPLITS:
     data_path = DATA_PATH + '{}/'.format(SPLITS[split])
+    data_path = DATA_PATH
     nusc = NuScenes(
       version=SPLITS[split], dataroot=data_path, verbose=True)
     out_path = OUT_PATH + '{}.json'.format(split)
@@ -228,11 +234,14 @@ def main():
               pt_3d = unproject_2d_to_3d(pt_2d, ann['depth'], calib)
               pt_3d[1] += ann['dim'][0] / 2
               print('loc      ', pt_3d)
-            cv2.imshow('img', img)
-            cv2.imshow('img_3d', img_3d)
-            cv2.waitKey()
-            nusc.render_sample_data(image_token)
-            plt.show()
+            print(image_info['file_name'])
+            out_img = OUT_PATH + image_info['file_name'].split('/')[-1]
+            cv2.imwrite(out_img,img)
+            #cv2.imshow('img', img)
+            #cv2.imshow('img_3d', img_3d)
+            #cv2.waitKey()
+            #nusc.render_sample_data(image_token)
+            #plt.show()
     print('reordering images')
     images = ret['images']
     video_sensor_to_images = {}

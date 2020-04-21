@@ -12,21 +12,22 @@ from .generic_dataset import GenericDataset
 from .datasets.coco import COCO
 from .datasets.kitti import KITTI
 from .datasets.coco_hp import COCOHP
-from .datasets.mot import MOT
-from .datasets.nuscenes import nuScenes
-from .datasets.crowdhuman import CrowdHuman
+#from .datasets.mot import MOT
+#from .datasets.nuscenes import nuScenes
+#from .datasets.crowdhuman import CrowdHuman
 from .datasets.kitti_tracking import KITTITracking
-
+from .datasets.plusai import PlusAI
 
 dataset_factory = {
   'custom': GenericDataset,
   'coco': COCO,
   'kitti': KITTI,
   'coco_hp': COCOHP,
-  'mot': MOT,
-  'nuscenes': nuScenes,
-  'crowdhuman': CrowdHuman,
+#  'mot': MOT,
+#  'nuscenes': nuScenes,
+#  'crowdhuman': CrowdHuman,
   'kitti_tracking': KITTITracking,
+  'plusai': PlusAI
 }
 
 

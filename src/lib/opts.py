@@ -206,7 +206,7 @@ class opts(object):
     self.parser.add_argument('--pre_thresh', type=float, default=-1)
     self.parser.add_argument('--track_thresh', type=float, default=0.3)
     self.parser.add_argument('--new_thresh', type=float, default=0.3)
-    self.parser.add_argument('--max_frame_dist', type=int, default=3)
+    self.parser.add_argument('--max_frame_dist', type=float, default=3)
     self.parser.add_argument('--ltrb_amodal', action='store_true')
     self.parser.add_argument('--ltrb_amodal_weight', type=float, default=0.1)
     self.parser.add_argument('--public_det', action='store_true')
@@ -274,7 +274,7 @@ class opts(object):
       opt.new_thresh = max(opt.track_thresh, opt.new_thresh)
       opt.pre_img = not opt.no_pre_img
       print('Using tracking threshold for out threshold!', opt.track_thresh)
-      if 'ddd' in opt.task:
+      if 'ddd' in opt.task or 'seg' in opt.task:
         opt.show_track_color = True
 
     opt.fix_res = not opt.keep_res
@@ -342,6 +342,12 @@ class opts(object):
         'hps': dataset.num_joints * 2, 'hm_hp': dataset.num_joints,
         'hp_offset': 2})
 
+    if 'seg' in opt.task:
+        opt.seg_feat = 48
+        opt.seg_weight = 1
+        opt.heads.update({'seg_feat':opt.seg_feat,
+                          'seg':opt.seg_feat*9 })
+
     if opt.ltrb:
       opt.heads.update({'ltrb': 4})
     if opt.ltrb_amodal:
@@ -361,13 +367,15 @@ class opts(object):
                    'tracking': opt.tracking_weight,
                    'ltrb_amodal': opt.ltrb_amodal_weight,
                    'nuscenes_att': opt.nuscenes_att_weight,
-                   'velocity': opt.velocity_weight}
+                   'velocity': opt.velocity_weight,
+                   'seg': opt.seg_weight,
+                   'seg_feat': 1}
     opt.weights = {head: weight_dict[head] for head in opt.heads}
     for head in opt.weights:
       if opt.weights[head] == 0:
         del opt.heads[head]
     opt.head_conv = {head: [opt.head_conv \
-      for i in range(opt.num_head_conv if head != 'reg' else 1)] for head in opt.heads}
+      for i in range(opt.num_head_conv if head != 'seg_feat' else 0)] for head in opt.heads}
     
     print('input h w:', opt.input_h, opt.input_w)
     print('heads', opt.heads)
@@ -381,7 +389,10 @@ class opts(object):
     default_dataset_info = {
       'ctdet': 'coco', 'multi_pose': 'coco_hp', 'ddd': 'nuscenes',
       'tracking,ctdet': 'coco', 'tracking,multi_pose': 'coco_hp', 
-      'tracking,ddd': 'nuscenes'
+      'tracking,ddd': 'nuscenes',
+      'tracking,plusai': 'plusai',
+      'tracking,seg': 'kitti_tracking',
+      'seg': 'kitti_tracking'
     }
     opt = self.parse()
     from dataset.dataset_factory import dataset_factory

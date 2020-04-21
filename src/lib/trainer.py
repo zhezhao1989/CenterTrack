@@ -10,7 +10,7 @@ from progress.bar import Bar
 from model.data_parallel import DataParallel
 from utils.utils import AverageMeter
 
-from model.losses import FastFocalLoss, RegWeightedL1Loss
+from model.losses import FastFocalLoss, RegWeightedL1Loss,SegLoss,SegLoss2
 from model.losses import BinRotLoss, WeightedBCELoss
 from model.decode import generic_decode
 from model.utils import _sigmoid, flip_tensor, flip_lr_off, flip_lr
@@ -27,6 +27,8 @@ class GenericLoss(torch.nn.Module):
     if 'nuscenes_att' in opt.heads:
       self.crit_nuscenes_att = WeightedBCELoss()
     self.opt = opt
+    ##### track seg
+    self.crit_seg = SegLoss2()
 
   def _sigmoid_output(self, output):
     if 'hm' in output:
@@ -40,6 +42,10 @@ class GenericLoss(torch.nn.Module):
   def forward(self, outputs, batch):
     opt = self.opt
     losses = {head: 0 for head in opt.heads}
+
+    #### track seg
+    if 'seg' in opt.heads:
+      del losses['seg_feat']
 
     for s in range(opt.num_stacks):
       output = outputs[s]
@@ -79,10 +85,16 @@ class GenericLoss(torch.nn.Module):
           output['nuscenes_att'], batch['nuscenes_att_mask'],
           batch['ind'], batch['nuscenes_att']) / opt.num_stacks
 
+      ##### track seg
+      if 'seg' in output:
+        losses['seg'] += self.crit_seg(output['seg'],output['seg_feat'],batch['ind'],batch['seg'])
+
     losses['tot'] = 0
     for head in opt.heads:
+      if head == 'seg_feat':
+        continue
       losses['tot'] += opt.weights[head] * losses[head]
-    
+    #print(opt.weights)
     return losses['tot'], losses
 
 
@@ -162,8 +174,8 @@ class Trainer(object):
         avg_loss_stats[l].update(
           loss_stats[l].mean().item(), batch['image'].size(0))
         Bar.suffix = Bar.suffix + '|{} {:.4f} '.format(l, avg_loss_stats[l].avg)
-      Bar.suffix = Bar.suffix + '|Data {dt.val:.3f}s({dt.avg:.3f}s) ' \
-        '|Net {bt.avg:.3f}s'.format(dt=data_time, bt=batch_time)
+      Bar.suffix = Bar.suffix + \
+        '|Net {bt.avg:.3f}s'.format(bt=batch_time)
       if opt.print_iter > 0: # If not using progress bar
         if iter_id % opt.print_iter == 0:
           print('{}/{}| {}'.format(opt.task, opt.exp_id, Bar.suffix)) 
@@ -183,7 +195,7 @@ class Trainer(object):
   def _get_losses(self, opt):
     loss_order = ['hm', 'wh', 'reg', 'ltrb', 'hps', 'hm_hp', \
       'hp_offset', 'dep', 'dim', 'rot', 'amodel_offset', \
-      'ltrb_amodal', 'tracking', 'nuscenes_att', 'velocity']
+      'ltrb_amodal', 'tracking', 'nuscenes_att', 'velocity','seg']
     loss_states = ['tot'] + [k for k in loss_order if k in opt.heads]
     loss = GenericLoss(opt)
     return loss_states, loss

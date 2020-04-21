@@ -140,7 +140,7 @@ class GenericDataset(data.Dataset):
         continue
       self._add_instance(
         ret, gt_det, k, cls_id, bbox, bbox_amodal, ann, trans_output, aug_s, 
-        calib, pre_cts, track_ids)
+        calib, pre_cts, track_ids, flipped)
 
     if self.opt.debug > 0:
       gt_det = self._format_gt_det(gt_det)
@@ -365,6 +365,10 @@ class GenericDataset(data.Dataset):
       ret['rot_mask'] = np.zeros((max_objs), dtype=np.float32)
       gt_det.update({'rot': []})
 
+    #### track seg
+    if 'seg' in self.opt.heads:
+      ret['seg'] = np.ones((max_objs, self.opt.output_h, self.opt.output_w), dtype=np.float32)*255
+
 
   def _get_calib(self, img_info, width, height):
     if 'calib' in img_info:
@@ -419,7 +423,7 @@ class GenericDataset(data.Dataset):
 
   def _add_instance(
     self, ret, gt_det, k, cls_id, bbox, bbox_amodal, ann, trans_output,
-    aug_s, calib, pre_cts=None, track_ids=None):
+    aug_s, calib, pre_cts=None, track_ids=None, flipped=False):
     h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
     if h <= 0 or w <= 0:
       return
@@ -510,6 +514,26 @@ class GenericDataset(data.Dataset):
       else:
         gt_det['amodel_offset'].append([0, 0])
     
+    #######track seg
+    if 'seg' in self.opt.heads:
+        if ann['segmentation'] != None:
+            segment = self.coco.annToMask(ann)
+        if flipped:
+            if ann['segmentation']!=None:
+                segment = segment[:, ::-1]
+        if ann['segmentation']!=None:
+            segment= cv2.warpAffine(segment, trans_output,
+                                 (self.opt.output_w, self.opt.output_h),
+                                 flags=cv2.INTER_LINEAR)
+            segment = segment.astype(np.float32)
+            segment_mask = np.ones_like(segment)
+            pad_rate = 0.1
+            x,y = (np.clip([ct[0] - (1 + pad_rate)*w/2 ,ct[0] + (1 + pad_rate)*w/2 ],0,self.opt.output_w - 1)).astype(np.int), \
+                  (np.clip([ct[1] - (1 + pad_rate)*h/2 , ct[1] + (1 + pad_rate)*h/2],0,self.opt.output_h - 1)).astype(np.int)
+            segment_mask[y[0]:y[1],x[0]:x[1]] = 0
+            segment[segment>0] = 1
+            segment[segment_mask == 1] = 255
+            ret['seg'][k] = segment
 
   def _add_hps(self, ret, k, ann, gt_det, trans_output, ct_int, bbox, h, w):
     num_joints = self.num_joints

@@ -86,6 +86,8 @@ class GenericNetwork(nn.Module):
                 fc.bias.data.fill_(opt.prior_bias)
               else:
                 fill_fc_weights(fc)
+              if 'seg_feat' in head:
+                fc = nn.Sequential(fc, nn.ReLU(inplace=True))
             self.__setattr__(head, fc)
 
     def forward(self, x, pre_img=None, pre_hm=None):

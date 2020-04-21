@@ -179,6 +179,14 @@ class Debugger(object):
                       (points[e[1], 0], points[e[1], 1]), c, 2,
                       lineType=cv2.LINE_AA)
 
+  def add_coco_seg(self, seg, img_id='default',tracking_id=-1):
+      seg = seg > 0
+      if tracking_id < 0:
+        color = np.array([[np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)]])
+      else:
+        color = np.array(self.track_color[tracking_id])
+      self.imgs[img_id][seg] = self.imgs[img_id][seg]*0.2 + color*0.8
+
   def clear(self):
     return
 
@@ -231,7 +239,7 @@ class Debugger(object):
     for i, v in self.imgs.items():
       if i in self.opt.save_imgs or self.opt.save_imgs == []:
         cv2.imwrite(
-          path + '/{}{}{}.png'.format(prefix, i, self.opt.save_img_suffix), v)
+          '../cache/debug/' + '/{}{}{}.png'.format(prefix, i, self.opt.save_img_suffix), v)
 
   def remove_side(self, img_id, img):
     if not (img_id in self.imgs):

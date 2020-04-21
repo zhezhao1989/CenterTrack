@@ -19,7 +19,7 @@ from utils.post_process import generic_post_process
 from utils.debugger import Debugger
 from utils.tracker import Tracker
 from dataset.dataset_factory import get_dataset
-
+from external.nms import soft_nms,nms
 
 class Detector(object):
   def __init__(self, opt):
@@ -131,7 +131,7 @@ class Detector(object):
     tot_time += tracking_time - start_time
 
     if self.opt.debug >= 1:
-      self.show_results(self.debugger, image, results)
+      self.show_results(self.debugger, image, results, meta)
     self.cnt += 1
 
     show_results_time = time.time()
@@ -140,7 +140,8 @@ class Detector(object):
     ret = {'results': results, 'tot': tot_time, 'load': load_time,
             'pre': pre_time, 'net': net_time, 'dec': dec_time,
             'post': post_time, 'merge': merge_time, 'track': track_time,
-            'display': display_time}
+            'display': display_time,
+            'meta': meta}
     if self.opt.save_video:
       try:
         ret.update({'generic': self.debugger.imgs['generic']})
@@ -333,10 +334,22 @@ class Detector(object):
   def merge_outputs(self, detections):
     assert len(self.opt.test_scales) == 1, 'multi_scale not supported!'
     results = []
+    bbox = []
     for i in range(len(detections[0])):
       if detections[0][i]['score'] > self.opt.out_thresh:
         results.append(detections[0][i])
-    return results
+        bb = detections[0][i]['bbox'].tolist()+[detections[0][i]['score']]
+        #print(bb)
+        bbox.append(bb)
+    if len(results) >0:
+      keep = nms(np.array(bbox,np.float32), 0.3)
+      rr = []
+      for ii in keep:
+        rr.append(results[ii])
+
+      return rr
+    else:
+      return results
 
   def debug(self, debugger, images, dets, output, scale=1, 
     pre_images=None, pre_hms=None):
@@ -361,13 +374,15 @@ class Detector(object):
         debugger.add_blend_img(pre_img, pre_hm, 'pre_hm')
 
 
-  def show_results(self, debugger, image, results):
+  def show_results(self, debugger, image, results, meta):
     debugger.add_img(image, img_id='generic')
     if self.opt.tracking:
       debugger.add_img(self.pre_image_ori if self.pre_image_ori is not None else image, 
         img_id='previous')
       self.pre_image_ori = image
-    
+
+    trans = get_affine_transform(meta['c'], meta['s'], 0, ( meta['out_width'], meta['out_height']), inv=1)
+
     for j in range(len(results)):
       if results[j]['score'] > self.opt.vis_thresh:
         item = results[j]
@@ -392,6 +407,27 @@ class Detector(object):
           debugger.add_coco_hp(item['hps'], tracking_id=tracking_id,
             img_id='generic')
 
+        #### track seg
+        if 'seg' in item:
+
+          segment = cv2.warpAffine(item['seg'], trans,(image.shape[1],image.shape[0]),
+                                       flags=cv2.INTER_CUBIC)
+          bbox = item['bbox']
+          w,h = bbox[2:4] - bbox[:2]
+
+          ct = np.array(
+              [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
+
+          segment_mask = np.zeros_like(segment)
+          pad_rate = 0.1
+          x, y = np.clip([ct[0] - (1 + pad_rate) * w / 2, ct[0] + (1 + pad_rate) * w / 2], 0,
+                         segment.shape[1] - 1).astype(np.int), \
+                 np.clip([ct[1] - (1 + pad_rate) * h / 2, ct[1] + (1 + pad_rate) * h / 2], 0,
+                         segment.shape[0] - 1).astype(np.int)
+          segment_mask[y[0]:y[1], x[0]:x[1]] = 1
+          segment = segment_mask*segment
+          debugger.add_coco_seg(segment, img_id='generic', tracking_id=tracking_id)
+
     if len(results) > 0 and \
       'dep' in results[0] and 'alpha' in results[0] and 'dim' in results[0]:
       debugger.add_3d_detection(
@@ -407,7 +443,7 @@ class Detector(object):
     if 'ddd_pred' in debugger.imgs:
       debugger.imgs['generic'] = debugger.imgs['ddd_pred']
     if self.opt.debug == 4:
-      debugger.save_all_imgs(self.opt.debug_dir, prefix='{}'.format(self.cnt))
+      debugger.save_all_imgs(self.opt.debug_dir, prefix='{:0>4d}'.format(self.cnt))
     else:
       debugger.show_all_imgs(pause=self.pause)
   

@@ -48,6 +48,10 @@ def generic_post_process(
           dets['bboxes'][i][j].reshape(2, 2), trans).reshape(4)
         item['bbox'] = bbox
 
+      #####track seg
+      if 'seg' in dets:
+        item['seg'] = dets['seg'][i][j]
+
       if 'hps' in dets:
         pts = transform_preds_with_trans(
           dets['hps'][i][j].reshape(-1, 2), trans).reshape(-1)

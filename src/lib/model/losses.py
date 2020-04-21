@@ -13,6 +13,39 @@ import torch.nn as nn
 from .utils import _tranpose_and_gather_feat, _nms, _topk
 import torch.nn.functional as F
 from utils.image import draw_umich_gaussian
+import utils.lovasz_losses as L
+
+#### track seg
+class SegLoss(nn.Module):
+    def __init__(self):
+        super(SegLoss, self).__init__()
+
+
+    def forward(self, output_weight , seg_feat , ind , target ):
+
+        B,C,H,W = seg_feat.size()
+        weight = _tranpose_and_gather_feat(output_weight, ind)
+        seg_feat = seg_feat.view([-1,H,W]).unsqueeze(0)
+        weight = weight.view([-1,C]).unsqueeze(-1).unsqueeze(-1)
+        pred_seg = F.conv2d(seg_feat, weight,groups = B)
+        pred_seg=pred_seg.view([B,-1,H,W])
+        loss = (L.lovasz_hinge(pred_seg, target, 255) + L.lovasz_hinge(-pred_seg,1-target,-254))/2
+        return loss
+
+class SegLoss2(nn.Module):
+    def __init__(self):
+        super(SegLoss2, self).__init__()
+
+
+    def forward(self, output_weight , seg_feat , ind , target ):
+
+        B,C,H,W = seg_feat.size()
+        weight = _tranpose_and_gather_feat(output_weight, ind)
+        seg_feat = seg_feat.view([-1,H,W]).unsqueeze(0)
+        weight = weight.view([-1,C,3,3])
+        pred_seg = F.conv2d(seg_feat, weight,stride=1, padding=1,groups = B).view([B, -1, H, W])
+        loss = (L.lovasz_hinge(pred_seg, target, 255) + L.lovasz_hinge(-pred_seg,1-target,-254))/2
+        return loss
 
 def _slow_neg_loss(pred, gt):
   '''focal loss from CornerNet'''

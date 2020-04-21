@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from .utils import _gather_feat, _tranpose_and_gather_feat
 from .utils import _nms, _topk, _topk_channel
+import torch.nn.functional as F
 
 
 def _update_kps_with_hm(
@@ -128,6 +129,13 @@ def generic_decode(output, K=100, opt=None):
     ret['bboxes'] = bboxes
     # print('ret bbox', ret['bboxes'])
  
+  #### track seg
+  if 'seg' in output:
+    weight = _tranpose_and_gather_feat(output['seg'], inds)
+    weight = weight.view([weight.size(1), -1, 3, 3])
+    pred_seg = F.conv2d(output['seg_feat'], weight, stride=1, padding=1)
+    ret['seg'] = pred_seg
+
   if 'ltrb' in output:
     ltrb = output['ltrb']
     ltrb = _tranpose_and_gather_feat(ltrb, inds) # B x K x 4
